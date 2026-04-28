@@ -1,0 +1,106 @@
+name: Veracode Security Scan
+ 
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+ 
+jobs:
+  veracode:
+    runs-on: concordia-linux-cpu2-ram7gi
+ 
+    env:
+      VERACODE_API_KEY_ID: ${{ secrets.VERACODE_API_KEY_ID }}
+      VERACODE_API_KEY_SECRET: ${{ secrets.VERACODE_API_KEY_SECRET }}
+ 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+ 
+      # -------------------------
+      # Setup runtimes
+      # -------------------------
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+ 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+ 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+ 
+      # -------------------------
+      # Install dependencies
+      # -------------------------
+      - name: Install Python deps
+        run: |
+          [ -f requirements.txt ] && pip install -r requirements.txt || true
+ 
+      - name: Install Node deps
+        run: |
+          [ -f package.json ] && npm install || true
+ 
+      - name: Install Go deps
+        run: |
+          [ -f go.mod ] && go mod download || true
+ 
+      # -------------------------
+      # Build artifacts
+      # -------------------------
+      - name: Build Node
+        run: |
+          [ -f package.json ] && npm run build || echo "No build"
+ 
+      - name: Build Go
+        run: |
+          [ -f go.mod ] && go build -o app || true
+ 
+      # -------------------------
+      # Package code
+      # -------------------------
+      - name: Package for Veracode
+        run: |
+          zip -r artifact.zip . \
+            -x "*.git*" \
+            -x "node_modules/*" \
+            -x "__pycache__/*"
+ 
+      # -------------------------
+      # 🚀 FAST SAST (Pipeline Scan)
+      # -------------------------
+      - name: Veracode Pipeline Scan (Fast)
+        uses: veracode/Veracode-pipeline-scan-action@v1
+        with:
+          vid: ${{ env.VERACODE_API_KEY_ID }}
+          vkey: ${{ env.VERACODE_API_KEY_SECRET }}
+          file: artifact.zip
+          fail_build: true
+          fail_on_severity: "Very High,High"
+ 
+      # -------------------------
+      # 🛑 Optional: Stop here on PR
+      # -------------------------
+      - name: Skip full scan for PRs
+        if: github.event_name == 'pull_request'
+        run: echo "Skipping full scan on PR"
+ 
+      # -------------------------
+      # 📦 FULL SCAN (Policy Scan)
+      # -------------------------
+      - name: Veracode Upload & Scan
+        if: github.event_name != 'pull_request'
+        uses: veracode/veracode-uploadandscan-action@0.2.7
+        with:
+          appname: "YOUR_APP_NAME"
+          createprofile: true
+          filepath: "artifact.zip"
+          version: "${{ github.sha }}"
+          vid: ${{ env.VERACODE_API_KEY_ID }}
+          vkey: ${{ env.VERACODE_API_KEY_SECRET }}
+          scantimeout: 60
