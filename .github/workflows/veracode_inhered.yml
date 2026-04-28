@@ -5,7 +5,7 @@ on:
  
 jobs:
   veracode:
-    runs-on: concordia-linux-cpu2-ram7gi
+    runs-on: ubuntu-latest
  
     env:
       VERACODE_API_KEY_ID: ${{ secrets.VERACODE_API_KEY_ID }}
