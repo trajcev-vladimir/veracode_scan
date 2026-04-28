@@ -1,0 +1,34 @@
+name: Veracode Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  veracode-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build project
+        run: |
+          dotnet build --configuration Release
+
+      - name: Package artifacts
+        run: |
+          mkdir veracode-package
+          cp -r bin/Release/* veracode-package/
+
+      - name: Upload and Scan with Veracode
+        uses: veracode/veracode-uploadandscan-action@v1
+        with:
+          appname: "your-app-name"
+          createprofile: true
+          filepath: "veracode-package"
+          vid: ${{ secrets.VERACODE_API_ID }}
+          vkey: ${{ secrets.VERACODE_API_KEY }}
+          version: "${{ github.run_id }}"
+          scantimeout: 60
